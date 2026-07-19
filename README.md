@@ -242,4 +242,4 @@ Empty = auto-pick (free-first: NVIDIA → …).
 
 ## License
 
-MIT — hackathon submission. See [DEVPOST.md](DEVPOST.md) for judge-facing submission copy (pitch, B2/Genblaze narrative, demo script).
+MIT — hackathon submission.
