@@ -1,0 +1,35 @@
+# Web framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
+pydantic>=2.9.0
+pydantic-settings>=2.6.0
+
+# Database
+sqlalchemy>=2.0.36
+aiosqlite>=0.20.0
+
+# HTTP / utils
+httpx>=0.27.0
+python-dotenv>=1.0.1
+
+# Genblaze orchestration + B2 storage (aligned with official sample)
+genblaze-core>=0.3.4
+genblaze-s3>=0.3.4
+genblaze-openai>=0.3.0
+genblaze-replicate>=0.3.0
+genblaze-nvidia>=0.3.0
+genblaze-decart>=0.3.0
+genblaze-elevenlabs>=0.3.0
+genblaze-lmnt>=0.3.0
+genblaze-gmicloud>=0.3.0
+
+# Direct B2/S3 helpers (presigned URLs, Object Lock)
+boto3>=1.35.0
+
+# Local free TTS (NVIDIA Magpie currently unavailable on free NIM genai)
+edge-tts>=6.1.0
+Pillow>=10.0.0
+
+# Tests
+pytest>=8.0.0
