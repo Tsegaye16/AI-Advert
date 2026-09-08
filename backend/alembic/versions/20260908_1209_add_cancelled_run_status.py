@@ -16,30 +16,21 @@ down_revision: Union[str, None] = 'ce149a78d2f7'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-OLD_STATUSES = ("QUEUED", "RUNNING", "STORYBOARD", "SUCCEEDED", "FAILED")
-NEW_STATUSES = (*OLD_STATUSES, "CANCELLED")
-
 
 def upgrade() -> None:
-    # SQLAlchemy renders Enum as VARCHAR + CHECK on SQLite, so the constraint has
-    # to be rewritten for the new member. Autogenerate does not diff CHECK.
-    with op.batch_alter_table("runs") as batch_op:
-        batch_op.alter_column(
-            "status",
-            existing_type=sa.Enum(*OLD_STATUSES, name="runstatus"),
-            type_=sa.Enum(*NEW_STATUSES, name="runstatus"),
-            existing_nullable=False,
-        )
+    """Widen runs.status to accept CANCELLED.
+
+    SQLAlchemy's Enum defaults to ``create_constraint=False``, so on SQLite the
+    column is a plain VARCHAR with nothing to alter — rebuilding the table there
+    would risk live data for no gain. PostgreSQL uses a native enum type that
+    does need a new label.
+    """
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("ALTER TYPE runstatus ADD VALUE IF NOT EXISTS 'CANCELLED'")
 
 
 def downgrade() -> None:
-    # Cancelled runs have no pre-existing equivalent; fold them into FAILED so
-    # the narrower constraint can be applied.
+    # Cancelled runs have no pre-existing equivalent, so fold them into FAILED.
+    # PostgreSQL cannot drop an enum label, so the type is left as-is.
     op.execute("UPDATE runs SET status = 'FAILED' WHERE status = 'CANCELLED'")
-    with op.batch_alter_table("runs") as batch_op:
-        batch_op.alter_column(
-            "status",
-            existing_type=sa.Enum(*NEW_STATUSES, name="runstatus"),
-            type_=sa.Enum(*OLD_STATUSES, name="runstatus"),
-            existing_nullable=False,
-        )

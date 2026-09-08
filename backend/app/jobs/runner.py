@@ -22,11 +22,29 @@ class RunCancelled(BaseException):
 
 
 def is_running(run_id: str) -> bool:
-    return run_id in _running
+    """Whether a worker is still executing this run.
+
+    ``_tasks`` is the source of truth: if a loop is torn down with a task still
+    pending, ``_runner``'s finally block never fires and ``_running`` keeps a
+    stale entry, which would block retry for the lifetime of the process.
+    """
+    task = _tasks.get(run_id)
+    if task is None or task.done():
+        _running.discard(run_id)
+        _tasks.pop(run_id, None)
+        return False
+    return True
 
 
 def active_run_ids() -> set[str]:
-    return set(_running)
+    return {run_id for run_id in tuple(_running) if is_running(run_id)}
+
+
+def reset_registry() -> None:
+    """Drop all tracked state. Intended for test isolation."""
+    _running.clear()
+    _tasks.clear()
+    _cancelled.clear()
 
 
 def enqueue_run(run_id: str) -> None:
