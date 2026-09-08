@@ -4,18 +4,56 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Set
 
 logger = logging.getLogger(__name__)
 
-_running: Set[str] = set()
+_running: set[str] = set()
+_tasks: dict[str, asyncio.Task] = {}
+_cancelled: set[str] = set()
+
+
+class RunCancelled(BaseException):
+    """Raised inside the worker thread to unwind a cancelled pipeline.
+
+    Inherits from BaseException so the pipeline's ``except Exception`` vendor
+    fallback handlers treat it as a real abort rather than a provider failure
+    worth retrying against another vendor.
+    """
+
+
+def is_running(run_id: str) -> bool:
+    """Whether a worker is still executing this run.
+
+    ``_tasks`` is the source of truth: if a loop is torn down with a task still
+    pending, ``_runner``'s finally block never fires and ``_running`` keeps a
+    stale entry, which would block retry for the lifetime of the process.
+    """
+    task = _tasks.get(run_id)
+    if task is None or task.done():
+        _running.discard(run_id)
+        _tasks.pop(run_id, None)
+        return False
+    return True
+
+
+def active_run_ids() -> set[str]:
+    return {run_id for run_id in tuple(_running) if is_running(run_id)}
+
+
+def reset_registry() -> None:
+    """Drop all tracked state. Intended for test isolation."""
+    _running.clear()
+    _tasks.clear()
+    _cancelled.clear()
 
 
 def enqueue_run(run_id: str) -> None:
     """Schedule pipeline execution without blocking the request."""
     if run_id in _running:
-        logger.info("Run %s already executing", run_id)
+        logger.info("Run already executing", extra={"run_id": run_id})
         return
+
+    _cancelled.discard(run_id)
 
     async def _runner() -> None:
         _running.add(run_id)
@@ -23,12 +61,38 @@ def enqueue_run(run_id: str) -> None:
             from app.services.generation_service import GenerationService
 
             await GenerationService().execute_run(run_id)
+        except asyncio.CancelledError:
+            logger.info("Run task cancelled", extra={"run_id": run_id})
+            raise
         finally:
             _running.discard(run_id)
+            _tasks.pop(run_id, None)
 
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(_runner())
+        _tasks[run_id] = loop.create_task(_runner(), name=f"run:{run_id}")
     except RuntimeError:
-        # Fallback for non-async contexts
+        # Fallback for non-async contexts (scripts, tests)
         asyncio.run(_runner())
+
+
+def request_cancel(run_id: str) -> bool:
+    """Flag a run for cancellation.
+
+    Pipelines run in a worker thread that cannot be killed, so cancellation is
+    cooperative: the flag is checked at every pipeline step boundary and the
+    step already in flight is allowed to finish. Returns True if a task was
+    still executing.
+    """
+    _cancelled.add(run_id)
+    task = _tasks.get(run_id)
+    return task is not None and not task.done()
+
+
+def is_cancelled(run_id: str) -> bool:
+    return run_id in _cancelled
+
+
+def clear_cancelled(run_id: str) -> None:
+    """Must be called before re-queueing, or a retry cancels itself."""
+    _cancelled.discard(run_id)

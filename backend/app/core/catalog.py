@@ -257,8 +257,8 @@ def _decart_video(settings: Settings):
 
 
 def _decart_image(settings: Settings):
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
 
     from app.core.decart_t2i import DecartCanvasImageProvider
 
@@ -365,7 +365,7 @@ def resolve_slot(
                 if env_model and _model_looks_compatible(name, env_model):
                     model_id = env_model
             return provider, model_id, name, entry
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             last_err = exc
             continue
 

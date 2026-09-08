@@ -32,7 +32,7 @@ def logo_external_inputs(
             ".gif": "image/gif",
         }.get(ext, "image/png")
         return [GBAsset(url=url, media_type=media, sha256=sha)]
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Could not presign logo for image steps: %s", exc)
         return None
 
@@ -41,7 +41,7 @@ def provider_accepts_logo_reference(provider: Any) -> bool:
     """True when provider can receive logo via external_inputs / chain."""
     try:
         caps = provider.get_capabilities()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
     if getattr(caps, "accepts_chain_input", False):
         return True

@@ -4,7 +4,8 @@ export type RunStatus =
   | "running"
   | "storyboard"
   | "succeeded"
-  | "failed";
+  | "failed"
+  | "cancelled";
 export type AssetKind =
   | "image"
   | "video"
@@ -98,7 +99,19 @@ export interface GenerateRequest {
   music_prompt?: string;
   storyboard?: boolean;
   scene_count?: number;
+  video_format?: VideoFormatKey;
   selection?: ProviderSelection;
+}
+
+export type VideoFormatKey = "landscape" | "square" | "portrait" | "vertical";
+
+export interface VideoFormatOption {
+  key: VideoFormatKey;
+  label: string;
+  width: number;
+  height: number;
+  aspect: string;
+  platforms: string[];
 }
 
 export interface ProviderChoice {
@@ -164,4 +177,71 @@ export interface Storyboard {
   scenes: StoryboardScene[];
   voiceover: string;
   ready: boolean;
+}
+
+export type ProviderSlot = "image" | "video" | "tts" | "music";
+
+export interface RunSummary {
+  id: string;
+  campaign_id: string;
+  mode: RunMode;
+  status: RunStatus;
+  parent_run_id: string | null;
+  steps: StepStatus[];
+  error: string | null;
+  canonical_hash: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  asset_count: number;
+  campaign_name: string;
+}
+
+export interface RunPage {
+  items: RunSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ProviderCatalogEntry {
+  vendor: string;
+  default_model: string;
+  suggested_models: string[];
+  key_available: boolean;
+  image_handoff?: string | null;
+}
+
+export interface ProviderSelectionSlot {
+  vendor: string;
+  model: string;
+}
+
+export interface ProvidersStatus {
+  b2: boolean;
+  demo_mode: boolean;
+  openai: boolean;
+  replicate: boolean;
+  nvidia: boolean;
+  elevenlabs: boolean;
+  lmnt: boolean;
+  gmicloud: boolean;
+  selected: Partial<Record<ProviderSlot, ProviderSelectionSlot>>;
+  keys: Record<string, boolean>;
+  matrix: Partial<Record<ProviderSlot, ProviderCatalogEntry[]>> | null;
+  hint: string | null;
+  image_model: string;
+  video_model: string;
+  voice_model: string;
+  music_model: string;
+}
+
+export interface HealthStatus {
+  status: "ok" | "degraded";
+  app: string;
+  b2_configured: boolean;
+  b2_connected: boolean;
+  ffmpeg_present: boolean;
+  demo_mode: boolean;
+  providers: ProvidersStatus;
 }

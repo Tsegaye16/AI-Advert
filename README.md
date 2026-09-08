@@ -61,17 +61,18 @@ Vendor pins: `IMAGE_VENDOR`, `VIDEO_VENDOR`, `TTS_VENDOR`, `MUSIC_VENDOR`. Empty
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  React + Vite + Ant Design                                   │
-│  Campaign builder · Gallery · Storyboard · Provenance        │
+│  React Router SPA · Vite · TypeScript · Ant Design 6         │
+│  Overview · Campaigns · Runs · Assets · Verify · Settings    │
 └────────────────────────────┬─────────────────────────────────┘
                              │ REST /api/v1
 ┌────────────────────────────▼─────────────────────────────────┐
 │  FastAPI + asyncio job runner                                │
-│  campaigns · runs · assets · provenance · providers/status   │
+│  request IDs · JSON logs · rate limiting · concurrency caps  │
+│  campaigns · runs · assets · provenance · formats · status   │
 └──────────┬─────────────────────────────┬─────────────────────┘
            │                             │
   ┌────────▼────────┐          ┌────────▼────────────────────┐
-  │ SQLite metadata │          │ Genblaze Pipeline.run()       │
+  │ SQLite + Alembic│          │ Genblaze Pipeline.run()       │
   │ campaigns/runs  │          │ + multi-provider switchboard  │
   └─────────────────┘          └────────┬──────────────────────┘
                                         │
@@ -185,14 +186,9 @@ DATABASE_URL=sqlite+aiosqlite:////app/data/advault.db
 DEMO_MODE=false
 ```
 
-The frontend image must be built with `VITE_API_BASE_URL=/api/v1` when served behind nginx on the same domain. Without it, the bundled app defaults to `http://localhost:8000`.
-
-Add to `frontend/Dockerfile` before `RUN npm run build`:
-
-```dockerfile
-ARG VITE_API_BASE_URL=/api/v1
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-```
+The frontend defaults to a relative `/api/v1` base, so it works behind the bundled
+nginx reverse proxy and the Vite dev proxy with no extra configuration. Set
+`VITE_API_BASE_URL` only for split-origin deployments.
 
 ### Split deploy
 
@@ -237,6 +233,33 @@ Copy `backend/.env.example` → `backend/.env`.
 | `OUTPUT_DIR`   | `./data/output`                      | Local temp output                        |
 | `FFMPEG_PATH`  | `ffmpeg`                             | Path to ffmpeg binary                    |
 
+### Observability & limits
+
+| Variable                           | Default | Description                                             |
+| ---------------------------------- | ------- | ------------------------------------------------------- |
+| `LOG_LEVEL`                        | `INFO`  | Root log level                                           |
+| `LOG_JSON`                         | `true`  | Structured JSON logs with a `request_id` field           |
+| `RATE_LIMIT_ENABLED`               | `true`  | In-process limiter (use Redis before scaling replicas)   |
+| `RATE_LIMIT_REQUESTS`              | `120`   | Requests per IP per window                               |
+| `RATE_LIMIT_WRITE_REQUESTS`        | `20`    | Writes per IP per window                                 |
+| `RATE_LIMIT_WINDOW_SECONDS`        | `60`    | Window length                                            |
+| `MAX_CONCURRENT_RUNS_PER_CAMPAIGN` | `2`     | Rejects further `/generate` calls with `429`             |
+
+Every response carries an `X-Request-ID` header. Supply your own to correlate a
+client trace with the server logs.
+
+### Database migrations
+
+Schema is owned by Alembic. The backend container runs `alembic upgrade head`
+before starting uvicorn; `Base.metadata.create_all` only runs outside production.
+
+```bash
+cd backend
+alembic upgrade head          # apply
+alembic revision --autogenerate -m "describe change"
+alembic check                 # fail if models drift from migrations
+```
+
 ### Backblaze B2
 
 | Variable                 | Description                                              |
@@ -279,9 +302,9 @@ Copy `backend/.env.example` → `backend/.env`.
 
 ### Frontend (build-time)
 
-| Variable              | Local dev                          | Docker / same-domain deploy |
-| --------------------- | ---------------------------------- | --------------------------- |
-| `VITE_API_BASE_URL`   | `http://localhost:8000/api/v1`     | `/api/v1`                   |
+| Variable            | Same-origin deploy (default) | Split-origin deploy                    |
+| ------------------- | ---------------------------- | -------------------------------------- |
+| `VITE_API_BASE_URL` | unset (uses `/api/v1`)       | `https://api.your-domain.com/api/v1`   |
 
 ### Example configurations
 

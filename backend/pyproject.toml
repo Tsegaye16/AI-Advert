@@ -1,0 +1,32 @@
+[project]
+name = "advault-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+  "B008",   # FastAPI dependency injection uses calls in defaults by design
+  "SIM108", # ternaries are not always clearer here
+  # str+Enum is deliberate: Pydantic and the JSON columns rely on the str mixin
+  # serialising to the member value on Python 3.12.
+  "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "RUF059", "SIM117"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+# `python -m pytest` adds the CWD to sys.path but the bare `pytest` entry point
+# does not, so `import app` needs this to work under both.
+pythonpath = ["."]
+filterwarnings = [
+  "ignore::DeprecationWarning",
+]
