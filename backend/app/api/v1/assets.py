@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import mimetypes
-from typing import Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -25,7 +24,7 @@ def _asset_out_with_view_url(asset: Asset) -> AssetOut:
     try:
         url, _ttl = B2AppService().presign(asset.b2_key)
         return out.model_copy(update={"url": url})
-    except Exception:  # noqa: BLE001
+    except Exception:
         return out
 
 
@@ -45,8 +44,8 @@ def _download_filename(asset: Asset) -> str:
 async def list_assets(
     page: int = Query(1, ge=1),
     page_size: int = Query(12, ge=1, le=100),
-    campaign_id: Optional[str] = Query(None),
-    run_id: Optional[str] = Query(None, description="Filter assets for one pipeline run"),
+    campaign_id: str | None = Query(None),
+    run_id: str | None = Query(None, description="Filter assets for one pipeline run"),
     db: AsyncSession = Depends(get_db),
 ) -> AssetPage:
     """Paginated asset listing across campaigns (optional campaign/run filter)."""
@@ -107,7 +106,7 @@ async def get_asset_url(
         try:
             url, ttl = B2AppService().presign(asset.b2_key)
             return PresignedUrlOut(url=url, expires_in=ttl, b2_key=asset.b2_key)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise HTTPException(
                 status_code=503, detail=f"Unable to presign asset: {exc}"
             ) from exc
@@ -142,7 +141,7 @@ async def download_asset(
             try:
                 url, _ttl = b2.presign_download(asset.b2_key, filename=filename)
                 return RedirectResponse(url=url, status_code=307)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 raise HTTPException(
                     status_code=503, detail=f"Unable to presign download: {exc}"
                 ) from exc
@@ -163,7 +162,7 @@ async def download_asset(
                 media_type=media,
                 headers={"Content-Disposition": disposition},
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise HTTPException(
                 status_code=503, detail=f"Unable to download asset: {exc}"
             ) from exc
@@ -193,12 +192,12 @@ async def approve_asset(
         try:
             url, _ttl = B2AppService().presign(asset.b2_key)
             asset.url = url
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         await db.commit()
         await db.refresh(asset)
         return _asset_out_with_view_url(asset)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
@@ -219,7 +218,7 @@ async def delete_asset(
                 approved=bool(asset.approved),
                 thumbnail_b2_key=asset.thumbnail_b2_key,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise HTTPException(
                 status_code=503, detail=f"Unable to delete asset from storage: {exc}"
             ) from exc

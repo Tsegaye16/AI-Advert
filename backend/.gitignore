@@ -4,7 +4,11 @@ __pycache__/
 *.egg-info/
 .env
 advault.db
+test-advault.db
+ci.db
+.alembic-scratch.db
 data/
 *.log
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/

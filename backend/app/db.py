@@ -25,8 +25,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
+    """Create tables for local development and tests.
+
+    Production schema is owned by Alembic (``alembic upgrade head``); creating
+    tables from metadata there would silently diverge from the migration history.
+    """
     # Import models so metadata is registered.
     from app import models  # noqa: F401
+
+    if settings.is_production:
+        return
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

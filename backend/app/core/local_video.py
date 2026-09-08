@@ -78,15 +78,17 @@ def _kenburns_mp4(
     *,
     ffmpeg: str,
     duration: float = _DURATION_SEC,
+    width: int = 1280,
+    height: int = 720,
 ) -> None:
     fps = 25
     frames = max(int(duration * fps), fps)
-    # Subtle zoom; pad to 1280x720 so VO mux has a consistent landscape frame.
+    # Subtle zoom; letterbox to the target placement size so the mux stays consistent.
     vf = (
-        "scale=1280:720:force_original_aspect_ratio=decrease,"
-        "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
         f"zoompan=z='min(1.0+0.0009*on,1.12)':d={frames}:"
-        "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1280x720:fps=25"
+        f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps=25"
     )
     cmd = [
         ffmpeg,
@@ -140,10 +142,19 @@ class LocalStillVideoProvider(SyncProvider):
             models=[DEFAULT_MODEL, "still"],
         )
 
-    def __init__(self, ffmpeg_path: str = "ffmpeg", output_dir: str | Path | None = None):
+    def __init__(
+        self,
+        ffmpeg_path: str = "ffmpeg",
+        output_dir: str | Path | None = None,
+        *,
+        width: int = 1280,
+        height: int = 720,
+    ):
         super().__init__()
         self._ffmpeg = ffmpeg_path or "ffmpeg"
         self._output_dir = Path(output_dir) if output_dir else None
+        self._width = width
+        self._height = height
 
     def generate(self, step: Step, config: RunnableConfig | None = None) -> Step:
         ffmpeg = self._ffmpeg
@@ -157,7 +168,10 @@ class LocalStillVideoProvider(SyncProvider):
         for asset in getattr(step, "inputs", None) or []:
             mt = (getattr(asset, "media_type", "") or "").lower()
             url = getattr(asset, "url", None)
-            if url and (mt.startswith("image/") or str(url).lower().endswith((".png", ".jpg", ".jpeg", ".webp"))):
+            is_image = mt.startswith("image/") or str(url).lower().endswith(
+                (".png", ".jpg", ".jpeg", ".webp")
+            )
+            if url and is_image:
                 image_url = url
                 break
         if not image_url and step.inputs:
@@ -174,7 +188,7 @@ class LocalStillVideoProvider(SyncProvider):
             out_path = work / "clip.mp4"
             try:
                 _download_image(image_url, img_path)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 raise ProviderError(
                     f"Failed to read chain image: {exc}",
                     error_code=ProviderErrorCode.INVALID_INPUT,
@@ -193,8 +207,8 @@ class LocalStillVideoProvider(SyncProvider):
                         "-i",
                         str(img_path),
                         "-vf",
-                        "scale=1280:720:force_original_aspect_ratio=decrease,"
-                        "pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+                        f"scale={self._width}:{self._height}:force_original_aspect_ratio=decrease,"
+                        f"pad={self._width}:{self._height}:(ow-iw)/2:(oh-ih)/2",
                         "-t",
                         str(duration),
                         "-c:v",
@@ -208,8 +222,15 @@ class LocalStillVideoProvider(SyncProvider):
                     if proc.returncode != 0:
                         raise RuntimeError(proc.stderr[-800:] if proc.stderr else "ffmpeg failed")
                 else:
-                    _kenburns_mp4(img_path, out_path, ffmpeg=ffmpeg, duration=duration)
-            except Exception as exc:  # noqa: BLE001
+                    _kenburns_mp4(
+                        img_path,
+                        out_path,
+                        ffmpeg=ffmpeg,
+                        duration=duration,
+                        width=self._width,
+                        height=self._height,
+                    )
+            except Exception as exc:
                 raise ProviderError(
                     f"FFmpeg still→video failed: {exc}",
                     error_code=ProviderErrorCode.MODEL_ERROR,
@@ -224,7 +245,7 @@ class LocalStillVideoProvider(SyncProvider):
             try:
                 url, sha = _upload_mp4_to_b2(payload, step.step_id)
                 asset = Asset(url=url, media_type="video/mp4", sha256=sha)
-            except Exception as upload_exc:  # noqa: BLE001
+            except Exception as upload_exc:
                 logger.warning("B2 inbox upload failed for still-video (%s)", upload_exc)
                 local = (
                     Path(self._output_dir or tempfile.gettempdir())
@@ -305,10 +326,19 @@ class LocalMultiSceneVideoProvider(SyncProvider):
             models=["multiscene", "storyboard", "kenburns"],
         )
 
-    def __init__(self, ffmpeg_path: str = "ffmpeg", output_dir: str | Path | None = None):
+    def __init__(
+        self,
+        ffmpeg_path: str = "ffmpeg",
+        output_dir: str | Path | None = None,
+        *,
+        width: int = 1280,
+        height: int = 720,
+    ):
         super().__init__()
         self._ffmpeg = ffmpeg_path or "ffmpeg"
         self._output_dir = Path(output_dir) if output_dir else None
+        self._width = width
+        self._height = height
 
     def generate(self, step: Step, config: RunnableConfig | None = None) -> Step:
         ffmpeg = self._ffmpeg
@@ -353,7 +383,7 @@ class LocalMultiSceneVideoProvider(SyncProvider):
                 clip_path = work / f"clip-{idx}.mp4"
                 try:
                     _download_image(url, img_path)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     raise ProviderError(
                         f"Failed to read scene image {idx + 1}: {exc}",
                         error_code=ProviderErrorCode.INVALID_INPUT,
@@ -363,6 +393,8 @@ class LocalMultiSceneVideoProvider(SyncProvider):
                     clip_path,
                     ffmpeg=ffmpeg,
                     duration=durations[idx],
+                    width=self._width,
+                    height=self._height,
                 )
                 clip_paths.append(clip_path)
 
@@ -378,7 +410,7 @@ class LocalMultiSceneVideoProvider(SyncProvider):
             try:
                 url, sha = _upload_mp4_to_b2(payload, step.step_id)
                 asset = Asset(url=url, media_type="video/mp4", sha256=sha)
-            except Exception as upload_exc:  # noqa: BLE001
+            except Exception as upload_exc:
                 logger.warning("B2 inbox upload failed for multiscene (%s)", upload_exc)
                 local = (
                     Path(self._output_dir or tempfile.gettempdir())

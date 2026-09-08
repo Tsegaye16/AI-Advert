@@ -1,18 +1,19 @@
+import contextlib
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.core.storage import B2Service
 from app.db import get_db
 from app.jobs.runner import enqueue_run
-from app.models.orm import Campaign
+from app.models.orm import Campaign, Run, RunStatus
 from app.models.schemas import (
     CampaignCreate,
     CampaignOut,
     CampaignUpdate,
     GenerateRequest,
-    RemixRequest,
     RunOut,
 )
 from app.services.generation_service import GenerationService
@@ -62,10 +63,9 @@ async def upload_campaign_logo(
     key = f"{settings.b2_prefix}/campaigns/{campaign_id}/brand/logo{ext}"
     b2 = B2Service(settings)
     if campaign.logo_b2_key and campaign.logo_b2_key != key:
-        try:
+        # A stale logo left behind is preferable to failing the upload.
+        with contextlib.suppress(Exception):
             b2.delete_object(campaign.logo_b2_key)
-        except Exception:  # noqa: BLE001
-            pass
     b2.put_bytes(key, payload, content_type=content_type)
     campaign.logo_b2_key = key
     await db.commit()
@@ -82,10 +82,8 @@ async def delete_campaign_logo(
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
     if campaign.logo_b2_key:
-        try:
+        with contextlib.suppress(Exception):
             B2Service().delete_object(campaign.logo_b2_key)
-        except Exception:  # noqa: BLE001
-            pass
         campaign.logo_b2_key = None
         await db.commit()
         await db.refresh(campaign)
@@ -145,6 +143,26 @@ async def generate_campaign_assets(
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    settings = get_settings()
+    active = (
+        await db.execute(
+            select(func.count())
+            .select_from(Run)
+            .where(
+                Run.campaign_id == campaign_id,
+                Run.status.in_([RunStatus.QUEUED, RunStatus.RUNNING]),
+            )
+        )
+    ).scalar_one()
+    if active >= settings.max_concurrent_runs_per_campaign:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"{active} run(s) already in flight for this campaign. "
+                "Wait for one to finish before starting another."
+            ),
+        )
+
     service = GenerationService()
     selection = None
     if payload.selection is not None:
@@ -159,6 +177,7 @@ async def generate_campaign_assets(
         selection=selection,
         storyboard=payload.storyboard,
         scene_count=payload.scene_count,
+        video_format=payload.video_format,
     )
     enqueue_run(run.id)
     loaded = await service.get_run(db, run.id)

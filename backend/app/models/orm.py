@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text, func
@@ -24,6 +24,12 @@ class RunStatus(str, enum.Enum):
     STORYBOARD = "storyboard"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+TERMINAL_RUN_STATUSES = frozenset(
+    {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}
+)
 
 
 class AssetKind(str, enum.Enum):
@@ -46,7 +52,7 @@ class Campaign(Base):
     tone: Mapped[str] = mapped_column(String(100), default="confident")
     cta: Mapped[str] = mapped_column(String(200), default="Shop now")
     brand_colors: Mapped[list[Any]] = mapped_column(JSON, default=list)
-    logo_b2_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    logo_b2_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     brief: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -72,19 +78,19 @@ class Run(Base):
     status: Mapped[RunStatus] = mapped_column(
         Enum(RunStatus), default=RunStatus.QUEUED, index=True
     )
-    parent_run_id: Mapped[Optional[str]] = mapped_column(
+    parent_run_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("runs.id"), nullable=True
     )
     prompt_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     steps: Mapped[list[Any]] = mapped_column(JSON, default=list)
-    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    manifest_b2_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    canonical_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    genblaze_run_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    started_at: Mapped[Optional[datetime]] = mapped_column(
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    manifest_b2_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    canonical_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    genblaze_run_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    finished_at: Mapped[Optional[datetime]] = mapped_column(
+    finished_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -107,14 +113,14 @@ class Asset(Base):
     step_name: Mapped[str] = mapped_column(String(100), default="")
     provider: Mapped[str] = mapped_column(String(100), default="")
     model: Mapped[str] = mapped_column(String(200), default="")
-    b2_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    sha256: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    b2_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(128), nullable=True)
     mime: Mapped[str] = mapped_column(String(100), default="application/octet-stream")
-    width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    thumbnail_b2_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    thumbnail_b2_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     approved: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

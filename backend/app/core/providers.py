@@ -8,6 +8,7 @@ from typing import Any
 
 from app.config import Settings, get_settings
 from app.core.catalog import IMAGE, MUSIC, TTS, VIDEO, provider_matrix, resolve_slot
+from app.core.formats import get_format
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +50,18 @@ def get_video_provider(
     *,
     vendor: str | None = None,
     model: str | None = None,
+    video_format: str | None = None,
 ):
     settings = settings or get_settings()
     _ensure_provider_env(settings)
     provider, model_id, vendor_id, entry = resolve_slot(
         VIDEO, vendor=vendor, model=model, settings=settings
     )
+    # Only the local ffmpeg renderer can honour an arbitrary output size.
+    if video_format and hasattr(provider, "_width"):
+        fmt = get_format(video_format)
+        provider._width = fmt.width
+        provider._height = fmt.height
     fallbacks = list(settings.video_fallback_models) if settings.video_fallback_models else []
     return provider, model_id, fallbacks, vendor_id, entry.image_handoff or "external_inputs"
 

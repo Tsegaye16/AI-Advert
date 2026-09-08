@@ -1,0 +1,206 @@
+/* ==========================================================================
+   AdVault design tokens
+   Single source of truth for colour, space, radius, elevation, type, motion.
+   Mirrored into the Ant Design theme in src/theme/antdTheme.ts — change both.
+   ========================================================================== */
+
+:root {
+  /* ---------- Brand (indigo) ------------------------------------------- */
+  --brand-50: #eef2ff;
+  --brand-100: #e0e7ff;
+  --brand-200: #c7d2fe;
+  --brand-300: #a5b4fc;
+  --brand-400: #818cf8;
+  --brand-500: #6366f1;
+  --brand-600: #4f46e5;
+  --brand-700: #4338ca;
+  --brand-800: #3730a3;
+  --brand-900: #312e81;
+
+  /* ---------- Neutrals (cool grey) ------------------------------------- */
+  --neutral-0: #ffffff;
+  --neutral-25: #fcfcfd;
+  --neutral-50: #f9fafb;
+  --neutral-100: #f2f4f7;
+  --neutral-200: #e4e7ec;
+  --neutral-300: #d0d5dd;
+  --neutral-400: #98a2b3;
+  --neutral-500: #667085;
+  --neutral-600: #475467;
+  --neutral-700: #344054;
+  --neutral-800: #1d2939;
+  --neutral-900: #101828;
+  --neutral-950: #0b0e14;
+
+  /* ---------- Semantic hues -------------------------------------------- */
+  --success-500: #16a34a;
+  --success-600: #15803d;
+  --success-soft: #dcfce7;
+  --warning-500: #d97706;
+  --warning-600: #b45309;
+  --warning-soft: #fef3c7;
+  --danger-500: #dc2626;
+  --danger-600: #b91c1c;
+  --danger-soft: #fee2e2;
+
+  /* ---------- Spacing (4px base) --------------------------------------- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* ---------- Radius ---------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ---------- Type ------------------------------------------------------ */
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono",
+    Menlo, Consolas, monospace;
+
+  --text-xs: 0.75rem; /* 12 */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-base: 0.875rem; /* 14 */
+  --text-md: 0.9375rem; /* 15 */
+  --text-lg: 1rem; /* 16 */
+  --text-xl: 1.125rem; /* 18 */
+  --text-2xl: 1.25rem; /* 20 */
+  --text-3xl: 1.5rem; /* 24 */
+  --text-4xl: 1.875rem; /* 30 */
+
+  --leading-tight: 1.25;
+  --leading-snug: 1.4;
+  --leading-normal: 1.55;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --tracking-tight: -0.011em;
+  --tracking-wide: 0.04em;
+
+  /* ---------- Motion ---------------------------------------------------- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 280ms;
+
+  /* ---------- Layout ---------------------------------------------------- */
+  --layout-max: 1440px;
+  --layout-gutter: var(--space-6);
+  --header-height: 56px;
+  --sidebar-width: 232px;
+  --z-header: 100;
+  --z-sidebar: 90;
+  --z-overlay: 1000;
+}
+
+/* ==========================================================================
+   Light theme (default)
+   ========================================================================== */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-canvas: var(--neutral-50);
+  --bg-surface: var(--neutral-0);
+  --bg-subtle: var(--neutral-100);
+  --bg-inset: var(--neutral-100);
+  --bg-hover: rgba(16, 24, 40, 0.04);
+  --bg-active: rgba(16, 24, 40, 0.07);
+  --bg-inverse: var(--neutral-900);
+  --bg-media: var(--neutral-100);
+  --bg-code: var(--neutral-900);
+  --text-on-code: #e6edf3;
+
+  --border-subtle: var(--neutral-200);
+  --border-default: var(--neutral-300);
+  --border-strong: var(--neutral-400);
+
+  --text-primary: var(--neutral-900);
+  --text-secondary: var(--neutral-600);
+  --text-tertiary: var(--neutral-500);
+  --text-disabled: var(--neutral-400);
+  --text-inverse: var(--neutral-0);
+  --text-brand: var(--brand-700);
+
+  --accent: var(--brand-600);
+  --accent-hover: var(--brand-700);
+  --accent-active: var(--brand-800);
+  --accent-subtle: var(--brand-50);
+  --accent-border: var(--brand-200);
+
+  --success: var(--success-500);
+  --success-bg: var(--success-soft);
+  --warning: var(--warning-500);
+  --warning-bg: var(--warning-soft);
+  --danger: var(--danger-500);
+  --danger-bg: var(--danger-soft);
+
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
+  --shadow-focus: 0 0 0 3px var(--brand-100);
+}
+
+/* ==========================================================================
+   Dark theme
+   ========================================================================== */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-canvas: #0b0e14;
+  --bg-surface: #12161f;
+  --bg-subtle: #1a1f2b;
+  --bg-inset: #161b25;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.09);
+  --bg-inverse: var(--neutral-100);
+  --bg-media: #1a1f2b;
+  --bg-code: #05070b;
+  --text-on-code: #d6dee8;
+
+  --border-subtle: #222836;
+  --border-default: #2d3545;
+  --border-strong: #3d4759;
+
+  --text-primary: #e7eaf0;
+  --text-secondary: #9aa4b8;
+  --text-tertiary: #78839a;
+  --text-disabled: #5a6478;
+  --text-inverse: var(--neutral-900);
+  --text-brand: var(--brand-300);
+
+  --accent: var(--brand-500);
+  --accent-hover: var(--brand-400);
+  --accent-active: var(--brand-300);
+  --accent-subtle: rgba(99, 102, 241, 0.14);
+  --accent-border: rgba(99, 102, 241, 0.34);
+
+  --success: #22c55e;
+  --success-bg: rgba(34, 197, 94, 0.14);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.14);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.14);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 16px -4px rgba(0, 0, 0, 0.55), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.35);
+}

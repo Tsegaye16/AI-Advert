@@ -44,6 +44,7 @@ export function runPhaseLabel(run: {
   if (run.status === "succeeded" && hasVideo) return "Ad pack complete";
   if (run.status === "succeeded") return "Complete";
   if (run.status === "failed") return "Failed";
+  if (run.status === "cancelled") return "Cancelled";
   if (run.status === "queued") return "Queued";
   return "In progress";
 }

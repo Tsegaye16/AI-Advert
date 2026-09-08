@@ -4,10 +4,10 @@ import hashlib
 import logging
 import mimetypes
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 import boto3
@@ -29,9 +29,9 @@ def _patch_genblaze_windows_file_urls() -> None:
     if _WINDOWS_FILE_URL_PATCHED or os.name != "nt":
         return
     try:
+        from genblaze_core._utils import ALLOWED_FILE_ROOTS
         from genblaze_core.exceptions import StorageError
         from genblaze_core.storage import transfer as transfer_mod
-        from genblaze_core._utils import ALLOWED_FILE_ROOTS
     except ImportError:
         return
 
@@ -140,7 +140,7 @@ class B2Service:
             self._client = get_s3_client()
         return self._client
 
-    def key_from_url(self, url: str | None) -> Optional[str]:
+    def key_from_url(self, url: str | None) -> str | None:
         if not url:
             return None
         parsed = urlparse(url)
@@ -206,7 +206,7 @@ class B2Service:
         retain_days = days if days is not None else self.settings.b2_object_lock_days
         if retain_days <= 0:
             return
-        retain_until = datetime.now(timezone.utc) + timedelta(days=retain_days)
+        retain_until = datetime.now(UTC) + timedelta(days=retain_days)
         try:
             self.client.put_object_retention(
                 Bucket=self.bucket,
@@ -217,7 +217,7 @@ class B2Service:
                 },
             )
             logger.info("Applied Object Lock to %s until %s", key, retain_until)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             # Bucket may not have Object Lock enabled — do not fail the run.
             logger.warning("Object Lock not applied for %s: %s", key, exc)
 
@@ -237,6 +237,6 @@ class B2Service:
         try:
             self.client.head_bucket(Bucket=self.bucket)
             return True
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("B2 health probe failed: %s", exc)
             return False

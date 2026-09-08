@@ -1,13 +1,18 @@
 from __future__ import annotations
+
 import asyncio
 import copy
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import flag_modified
+
 from app.config import Settings, get_settings
+from app.core.formats import get_format
 from app.core.pipeline import (
     build_prompts,
     run_full_pipeline,
@@ -15,11 +20,21 @@ from app.core.pipeline import (
     run_storyboard_finalize_pipeline,
     run_storyboard_phase,
 )
-from app.models.orm import Asset, AssetKind, Campaign, Run, RunMode, RunStatus
+from app.jobs.runner import RunCancelled, is_cancelled
+from app.models.orm import (
+    TERMINAL_RUN_STATUSES,
+    Asset,
+    AssetKind,
+    Campaign,
+    Run,
+    RunMode,
+    RunStatus,
+)
+
 logger = logging.getLogger(__name__)
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 def _initial_steps(mode: RunMode, *, include_music: bool = False) -> list[dict[str, Any]]:
     """Seed steps matching pipeline mode so pollers see structure immediately."""
@@ -92,7 +107,9 @@ class GenerationService:
         selection: dict[str, Any] | None = None,
         storyboard: bool = False,
         scene_count: int | None = None,
+        video_format: str | None = None,
     ) -> Run:
+        fmt = get_format(video_format)
         prompts = build_prompts(
             product_name=campaign.product_name,
             product_description=campaign.product_description,
@@ -103,10 +120,11 @@ class GenerationService:
             voiceover_script=voiceover_script,
             music_prompt=music_prompt,
             has_logo=bool(campaign.logo_b2_key),
+            video_format=fmt.key,
         )
         if storyboard and mode == RunMode.FULL and not (voiceover_script or "").strip():
             prompts["voice"] = ""
-        snapshot: dict[str, Any] = {**prompts}
+        snapshot: dict[str, Any] = {**prompts, "format": fmt.key}
         if selection:
             snapshot["selection"] = selection
         if storyboard and mode == RunMode.FULL:
@@ -162,6 +180,9 @@ class GenerationService:
                 run.finished_at = _now()
                 await db.commit()
                 return
+            if is_cancelled(run_id):
+                await self._mark_cancelled(run_id)
+                return
             include_music = bool(
                 self.settings.include_music and run.mode == RunMode.FULL
             )
@@ -174,23 +195,32 @@ class GenerationService:
             async def _persist_steps(steps: list[dict[str, Any]]) -> None:
                 async with SessionLocal() as progress_db:
                     row = await progress_db.get(Run, run_id)
-                    if row is None:
+                    if row is None or row.status in TERMINAL_RUN_STATUSES:
                         return
                     row.steps = copy.deepcopy(steps)
                     await progress_db.commit()
             def on_progress(steps: list[dict[str, Any]]) -> None:
-                """Called from worker thread inside asyncio.to_thread pipelines."""
+                """Called from the worker thread at every pipeline step boundary.
+
+                Doubles as the cancellation checkpoint: a worker thread cannot be
+                killed, so raising here unwinds the pipeline at the next safe point.
+                """
+                if is_cancelled(run_id):
+                    raise RunCancelled(run_id)
                 try:
                     fut = asyncio.run_coroutine_threadsafe(
                         _persist_steps(copy.deepcopy(steps)), loop
                     )
                     fut.result(timeout=15)
-                except Exception as exc:  # noqa: BLE001
+                except RunCancelled:
+                    raise
+                except Exception as exc:
                     logger.warning("Failed to persist mid-run steps for %s: %s", run_id, exc)
             try:
                 snapshot = dict(run.prompt_snapshot or {})
                 selection = snapshot.pop("selection", None)
                 storyboard_meta = snapshot.pop("storyboard", None) or {}
+                video_format = snapshot.pop("format", None)
                 prompts = {
                     k: v
                     for k, v in snapshot.items()
@@ -203,6 +233,8 @@ class GenerationService:
                     # Simulate step progression so UI pollers see mid-run updates.
                     # Await on the event loop — do not block via fut.result().
                     for step in run.steps or []:
+                        if is_cancelled(run_id):
+                            raise RunCancelled(run_id)
                         step["status"] = "running"
                         await _persist_steps(list(run.steps or []))
                         await asyncio.sleep(0.4)
@@ -229,6 +261,7 @@ class GenerationService:
                         settings=self.settings,
                         selection=selection,
                         include_music=include_music,
+                        video_format=video_format,
                         on_progress=on_progress,
                     )
                 elif is_storyboard and run.mode == RunMode.FULL:
@@ -252,6 +285,9 @@ class GenerationService:
                         on_progress=on_progress,
                     )
                     from app.services.storyboard_service import persist_storyboard_assets
+
+                    if is_cancelled(run_id):
+                        raise RunCancelled(run_id)
 
                     run.steps = result.steps
                     run.manifest_b2_key = result.manifest_b2_key
@@ -279,6 +315,7 @@ class GenerationService:
                         selection=selection,
                         include_music=include_music,
                         logo_b2_key=campaign.logo_b2_key,
+                        video_format=video_format,
                         on_progress=on_progress,
                     )
                 else:
@@ -292,6 +329,9 @@ class GenerationService:
                         logo_b2_key=campaign.logo_b2_key,
                         on_progress=on_progress,
                     )
+                if is_cancelled(run_id):
+                    raise RunCancelled(run_id)
+
                 run.steps = result.steps
                 run.manifest_b2_key = result.manifest_b2_key
                 run.canonical_hash = result.canonical_hash
@@ -329,12 +369,48 @@ class GenerationService:
                         )
                     )
                 await db.commit()
-            except Exception as exc:  # noqa: BLE001
+            except RunCancelled:
+                logger.info("Run cancelled by user", extra={"run_id": run_id})
+                db.expunge_all()
+                await self._mark_cancelled(run_id)
+            except asyncio.CancelledError:
+                logger.info("Run task cancelled", extra={"run_id": run_id})
+                db.expunge_all()
+                await self._mark_cancelled(run_id)
+                raise
+            except Exception as exc:
                 logger.exception("Pipeline failed for run %s", run_id)
+                if is_cancelled(run_id):
+                    db.expunge_all()
+                    await self._mark_cancelled(run_id)
+                    return
                 run.status = RunStatus.FAILED
                 run.error = str(exc)
                 run.finished_at = _now()
                 await db.commit()
+
+    @staticmethod
+    async def _mark_cancelled(run_id: str) -> None:
+        """Write the cancelled terminal state on a clean session.
+
+        The executor's session holds a stale row, so committing through it would
+        resurrect the pre-cancel status the API endpoint already overwrote.
+        """
+        from app.db import SessionLocal
+
+        async with SessionLocal() as db:
+            row = await db.get(Run, run_id)
+            if row is None:
+                return
+            row.status = RunStatus.CANCELLED
+            row.error = row.error or "Cancelled by user"
+            row.finished_at = row.finished_at or _now()
+            for step in row.steps or []:
+                if step.get("status") in {"queued", "running"}:
+                    step["status"] = "cancelled"
+            flag_modified(row, "steps")
+            await db.commit()
+
     async def _demo_result(self, run: Run):
         """Synthetic success path when DEMO_MODE=true (no provider keys needed)."""
         from app.core.pipeline import PipelineResult
