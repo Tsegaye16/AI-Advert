@@ -16,6 +16,11 @@
 *.db-shm
 *.sqlite
 *.sqlite3
+# Dumps and pre-migration snapshots, e.g. advault.db.backup-20260101-120000
+*.backup
+*.backup-*
+*.bak
+*.dump
 
 # ---------------------------------------------------------------------------
 # Python

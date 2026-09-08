@@ -56,7 +56,6 @@ jobs:
     env:
       DEMO_MODE: "true"
       APP_ENV: test
-      DATABASE_URL: sqlite+aiosqlite:///./ci.db
     steps:
       - uses: actions/checkout@v4
 
@@ -79,6 +78,9 @@ jobs:
         run: ruff check app tests
 
       - name: Verify migrations match models
+        # Own database so it isn't clobbered by the test suite's fixture.
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///./ci-migrations.db
         run: |
           alembic upgrade head
           alembic check

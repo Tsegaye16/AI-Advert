@@ -24,6 +24,9 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# `python -m pytest` adds the CWD to sys.path but the bare `pytest` entry point
+# does not, so `import app` needs this to work under both.
+pythonpath = ["."]
 filterwarnings = [
   "ignore::DeprecationWarning",
 ]
