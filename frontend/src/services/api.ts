@@ -5,16 +5,23 @@ import type {
   Campaign,
   CampaignCreate,
   GenerateRequest,
+  HealthStatus,
   PresignedUrl,
   Provenance,
+  ProvidersStatus,
   RemixRequest,
   Run,
+  RunPage,
+  RunStatus,
   Storyboard,
   VerifyResult,
+  VideoFormatOption,
 } from "../types";
 
+// Relative by default so the Vite dev proxy and the nginx reverse proxy both
+// work without extra CORS configuration. Override for split-origin deploys.
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api/v1",
   headers: { "Content-Type": "application/json" },
 });
 
@@ -76,6 +83,14 @@ export const getCampaign = async (id: string) => {
   return data;
 };
 
+export const updateCampaign = async (
+  id: string,
+  payload: Partial<CampaignCreate>,
+) => {
+  const { data } = await api.patch<Campaign>(`/campaigns/${id}`, payload);
+  return data;
+};
+
 export const generateCampaign = async (
   campaignId: string,
   payload: GenerateRequest,
@@ -92,6 +107,13 @@ export const getRun = async (runId: string) => {
   return data;
 };
 
+const TERMINAL_RUN_STATUSES = new Set([
+  "succeeded",
+  "failed",
+  "storyboard",
+  "cancelled",
+]);
+
 /** Poll a run until terminal status, invoking onUpdate each tick. */
 export const pollRun = async (
   runId: string,
@@ -101,11 +123,7 @@ export const pollRun = async (
   for (;;) {
     const run = await getRun(runId);
     onUpdate?.(run);
-    if (
-      run.status === "succeeded" ||
-      run.status === "failed" ||
-      run.status === "storyboard"
-    ) {
+    if (TERMINAL_RUN_STATUSES.has(run.status)) {
       return run;
     }
     await new Promise((r) => setTimeout(r, intervalMs));
@@ -114,6 +132,26 @@ export const pollRun = async (
 
 export const remixRun = async (runId: string, payload: RemixRequest) => {
   const { data } = await api.post<Run>(`/runs/${runId}/remix`, payload);
+  return data;
+};
+
+export const listRuns = async (
+  opts: {
+    page?: number;
+    pageSize?: number;
+    campaignId?: string | null;
+    status?: RunStatus | null;
+  } = {},
+) => {
+  const { page = 1, pageSize = 20, campaignId, status } = opts;
+  const { data } = await api.get<RunPage>("/runs", {
+    params: {
+      page,
+      page_size: pageSize,
+      ...(campaignId ? { campaign_id: campaignId } : {}),
+      ...(status ? { status } : {}),
+    },
+  });
   return data;
 };
 
@@ -142,6 +180,11 @@ export const listAllAssets = async (opts: {
 
 export const getAssetUrl = async (assetId: string) => {
   const { data } = await api.get<PresignedUrl>(`/assets/${assetId}/url`);
+  return data;
+};
+
+export const getAsset = async (assetId: string) => {
+  const { data } = await api.get<Asset>(`/assets/${assetId}`);
   return data;
 };
 
@@ -208,7 +251,29 @@ export const finalizeStoryboard = async (runId: string) => {
   return data;
 };
 
-export const getProvidersStatus = async () => {
-  const { data } = await api.get("/providers/status");
+export const cancelRun = async (runId: string) => {
+  const { data } = await api.post<Run>(`/runs/${runId}/cancel`);
   return data;
+};
+
+export const retryRun = async (runId: string) => {
+  const { data } = await api.post<Run>(`/runs/${runId}/retry`);
+  return data;
+};
+
+export const getProvidersStatus = async () => {
+  const { data } = await api.get<ProvidersStatus>("/providers/status");
+  return data;
+};
+
+/** /health sits outside the versioned API prefix. */
+export const getHealth = async () => {
+  const base = (api.defaults.baseURL || "").replace(/\/api\/v1\/?$/, "");
+  const { data } = await axios.get<HealthStatus>(`${base}/health`);
+  return data;
+};
+
+export const listFormats = async () => {
+  const { data } = await api.get<{ formats: VideoFormatOption[] }>("/formats");
+  return data.formats;
 };

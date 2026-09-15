@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated, List
+from typing import Annotated
 
 from pydantic import AliasChoices, BeforeValidator, Field
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -11,7 +11,7 @@ def _split_csv(value: object) -> object:
     return value
 
 
-CsvList = Annotated[List[str], NoDecode, BeforeValidator(_split_csv)]
+CsvList = Annotated[list[str], NoDecode, BeforeValidator(_split_csv)]
 
 
 class Settings(BaseSettings):
@@ -82,6 +82,21 @@ class Settings(BaseSettings):
     output_dir: str = "./data/output"
     ffmpeg_path: str = "ffmpeg"
     demo_mode: bool = False
+
+    # Observability
+    log_level: str = "INFO"
+    log_json: bool = True
+
+    # Abuse protection (in-process; use Redis before scaling past one replica)
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = 120
+    rate_limit_write_requests: int = 20
+    rate_limit_window_seconds: int = 60
+    max_concurrent_runs_per_campaign: int = 2
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() in {"production", "prod"}
 
     @property
     def b2_configured(self) -> bool:

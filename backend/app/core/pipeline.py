@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from app.config import Settings, get_settings
 from app.core import providers as provider_factory
 from app.core.branding import logo_external_inputs, provider_accepts_logo_reference
+from app.core.formats import get_format
 from app.core.storage import B2Service, build_object_storage_sink
 
 logger = logging.getLogger(__name__)
@@ -19,13 +21,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PipelineResult:
     mode: str
-    genblaze_run_id: Optional[str]
-    canonical_hash: Optional[str]
+    genblaze_run_id: str | None
+    canonical_hash: str | None
     manifest_verified: bool
     manifest_dict: dict[str, Any] = field(default_factory=dict)
     assets: list[dict[str, Any]] = field(default_factory=list)
     steps: list[dict[str, Any]] = field(default_factory=list)
-    manifest_b2_key: Optional[str] = None
+    manifest_b2_key: str | None = None
     raw: Any = None
     storyboard_scenes: list[dict[str, Any]] = field(default_factory=list)
 
@@ -90,7 +92,7 @@ def _embed_manifest_in_final_mp4(
                         asset.sha256 = new_sha
             manifest = Manifest.from_run(run)
             logger.info("Embedded manifest into final MP4 at %s", key)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("manifest embed failed (continuing without): %s", exc)
     return assets, manifest
 
@@ -102,7 +104,7 @@ def _pipeline_manifest_fields(
     b2: B2Service,
     campaign_id: str,
     run_id: str,
-) -> tuple[Optional[str], bool, Optional[str], dict[str, Any]]:
+) -> tuple[str | None, bool, str | None, dict[str, Any]]:
     """Verify manifest and persist B2 sidecar."""
     verified = False
     canonical = None
@@ -110,7 +112,7 @@ def _pipeline_manifest_fields(
         canonical = getattr(manifest, "canonical_hash", None)
         try:
             verified = bool(manifest.verify())
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("manifest.verify failed: %s", exc)
             verified = False
 
@@ -137,13 +139,16 @@ def build_prompts(
     voiceover_script: str | None = None,
     music_prompt: str | None = None,
     has_logo: bool = False,
+    video_format: str | None = None,
 ) -> dict[str, str]:
+    fmt = get_format(video_format)
     base = prompt_override or (
         f"Professional advertising hero image for {product_name}. "
         f"{product_description}. Target audience: {audience or 'general consumers'}. "
         f"Tone: {tone}. Clean composition, product-focused, commercial photography, "
         f"no text overlays."
     )
+    base += f" {fmt.prompt_hint}."
     if has_logo:
         base += (
             " Respect the supplied brand logo reference; place it naturally "
@@ -268,7 +273,7 @@ def _persist_manifest_sidecar(
     b2: B2Service,
     campaign_id: str,
     run_id: str,
-) -> Optional[str]:
+) -> str | None:
     import json
 
     payload = _manifest_to_dict(manifest)
@@ -308,9 +313,10 @@ def _assert_pipeline_ok(
             continue
         summary = _step_summary(step)
         name = summary["name"].lower()
-        if critical_step_names is not None:
-            if not any(c in name for c in critical_step_names):
-                continue  # e.g. optional music
+        if critical_step_names is not None and not any(
+            c in name for c in critical_step_names
+        ):
+            continue  # e.g. optional music
         err = getattr(step, "error", None) or summary.get("status")
         failures.append(f"{summary['name']}: {err}")
     if failures:
@@ -438,6 +444,7 @@ def run_full_pipeline(
     selection: dict[str, Any] | None = None,
     include_music: bool = False,
     logo_b2_key: str | None = None,
+    video_format: str | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> PipelineResult:
     """Full ad pack: image → video → voice → optional music → ffmpeg mux.
@@ -466,6 +473,7 @@ def run_full_pipeline(
             settings,
             vendor=video_sel.get("vendor"),
             model=video_sel.get("model"),
+            video_format=video_format,
         )
     )
     voice_provider, voice_model, voice_vendor = provider_factory.get_voice_provider(
@@ -732,7 +740,7 @@ def _generate_storyboard_scene_image(
             run_kwargs.pop("raise_on_failure", None)
             try:
                 raw = pipe.run(**run_kwargs)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 last_err = exc
                 logger.warning(
                     "Storyboard scene %s vendor %s failed: %s",
@@ -741,7 +749,7 @@ def _generate_storyboard_scene_image(
                     exc,
                 )
                 continue
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             last_err = exc
             logger.warning(
                 "Storyboard scene %s vendor %s failed: %s",
@@ -814,7 +822,9 @@ def run_storyboard_phase(
     selection = selection or {}
     image_sel = selection.get("image") or {}
 
-    image_provider, image_model, image_vendor = provider_factory.get_image_provider(
+    # The provider handle is resolved per scene below with vendor fallback;
+    # only the resolved model/vendor defaults are needed here.
+    _image_provider, image_model, image_vendor = provider_factory.get_image_provider(
         settings,
         vendor=image_sel.get("vendor"),
         model=image_sel.get("model"),
@@ -941,6 +951,7 @@ def run_storyboard_finalize_pipeline(
     settings: Settings | None = None,
     selection: dict[str, Any] | None = None,
     include_music: bool = False,
+    video_format: str | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> PipelineResult:
     """After storyboard approval: multi-scene video → VO → optional music → mux.
@@ -965,9 +976,12 @@ def run_storyboard_finalize_pipeline(
         model=tts_sel.get("model"),
     )
     compositor = provider_factory.get_compositor(settings)
+    scene_format = get_format(video_format)
     multi_video = LocalMultiSceneVideoProvider(
         ffmpeg_path=settings.ffmpeg_path,
         output_dir=settings.output_dir,
+        width=scene_format.width,
+        height=scene_format.height,
     )
     scene_inputs = [
         GBAsset(url=url, media_type="image/png") for url in scene_image_urls

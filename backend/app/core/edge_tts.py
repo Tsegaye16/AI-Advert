@@ -12,7 +12,6 @@ import logging
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
 
 from genblaze_core.exceptions import ProviderError
 from genblaze_core.models.asset import Asset
@@ -105,7 +104,7 @@ class EdgeTTSProvider(SyncProvider):
 
         try:
             payload = asyncio.run(self._synthesize(text, voice))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ProviderError(
                 f"Edge TTS failed: {exc}",
                 error_code=ProviderErrorCode.MODEL_ERROR,
@@ -122,7 +121,7 @@ class EdgeTTSProvider(SyncProvider):
         try:
             url, sha = _upload_mp3_to_b2(payload, step.step_id)
             asset = Asset(url=url, media_type="audio/mpeg", sha256=sha)
-        except Exception as upload_exc:  # noqa: BLE001
+        except Exception as upload_exc:
             logger.warning("B2 inbox upload failed for TTS (%s); using file URI", upload_exc)
             asset = Asset(url=out_path.as_uri(), media_type="audio/mpeg")
 

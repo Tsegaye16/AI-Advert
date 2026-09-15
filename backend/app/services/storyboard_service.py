@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import copy
 import logging
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -13,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.config import Settings, get_settings
-from app.core.storyboard import generate_scene_image, scene_durations_from_lines
 from app.core.storage import B2Service
+from app.core.storyboard import generate_scene_image, scene_durations_from_lines
 from app.models.orm import Asset, AssetKind, Campaign, Run, RunStatus
 from app.models.schemas import StoryboardOut, StoryboardSceneOut
 from app.services.b2_service import B2AppService
@@ -38,7 +37,7 @@ def _asset_view_url(asset: Asset) -> str | None:
         try:
             url, _ = B2AppService().presign(asset.b2_key)
             return url
-        except Exception:  # noqa: BLE001
+        except Exception:
             return asset.url
     return asset.url
 
@@ -200,7 +199,7 @@ class StoryboardService:
                             approved=bool(old.approved),
                             thumbnail_b2_key=old.thumbnail_b2_key,
                         )
-                    except Exception as exc:  # noqa: BLE001
+                    except Exception as exc:
                         logger.warning("Old scene asset B2 delete failed: %s", exc)
                 await db.delete(old)
 

@@ -48,9 +48,9 @@ def generate_voice_lines(
         f"That's why we built {product_name}.",
         f"{tone_word.capitalize()} quality you can feel.",
         f"See {product_name} in action.",
-        f"Real results for real people.",
+        "Real results for real people.",
         f"Trusted by {aud} everywhere.",
-        f"Don't miss out on the difference.",
+        "Don't miss out on the difference.",
     ]
     cta_line = f"{cta_text}. Get {product_name} today."
     if count == 1:
@@ -58,7 +58,7 @@ def generate_voice_lines(
     body = beats[: max(1, count - 1)]
     while len(body) < count - 1:
         body.append(body[-1])
-    return body + [cta_line]
+    return [*body, cta_line]
 
 
 def split_voice_lines(

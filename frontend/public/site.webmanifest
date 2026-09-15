@@ -1,0 +1,18 @@
+{
+  "name": "AdVault — Provenance-driven AI ad packs",
+  "short_name": "AdVault",
+  "description": "Generate campaign creative, store it on Backblaze B2, and prove its integrity with signed provenance manifests.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

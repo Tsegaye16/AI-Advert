@@ -2,18 +2,43 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>AdVault — Provenance-driven AI ad packs</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
-      rel="stylesheet"
+    <meta
+      name="description"
+      content="Generate campaign creative with a multi-provider AI pipeline, store every artifact on Backblaze B2, and prove its integrity with SHA-256 provenance manifests."
     />
+
+    <link rel="icon" type="image/svg+xml" href="/mark.svg" />
+    <link rel="apple-touch-icon" href="/mark.svg" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light dark" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AdVault" />
+    <meta property="og:title" content="AdVault — Provenance-driven AI ad packs" />
+    <meta
+      property="og:description"
+      content="Generate campaign creative, store it durably on Backblaze B2, and verify every asset against a signed provenance manifest."
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="AdVault — Provenance-driven AI ad packs" />
+    <meta
+      name="twitter:description"
+      content="Generate campaign creative, store it durably on Backblaze B2, and verify every asset against a signed provenance manifest."
+    />
+
+    <!-- Applies the stored theme before first paint so dark mode never flashes white.
+         Kept as an external file so the CSP can forbid inline scripts. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      AdVault requires JavaScript to run. Please enable it in your browser.
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

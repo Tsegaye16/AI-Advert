@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,12 +39,12 @@ class ProvenanceService:
             | ({asset.model} if asset.model else set())
         )
 
-        manifest: Optional[dict[str, Any]] = None
+        manifest: dict[str, Any] | None = None
         if run.manifest_b2_key and self.settings.b2_configured:
             try:
                 raw = self.b2.get_bytes(run.manifest_b2_key)
                 manifest = json.loads(raw.decode("utf-8"))
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("Failed to load manifest: %s", exc)
 
         return ProvenanceOut(
@@ -61,8 +61,8 @@ class ProvenanceService:
 
     async def verify_asset(self, db: AsyncSession, asset: Asset, run: Run) -> VerifyOut:
         manifest_ok = False
-        byte_match: Optional[bool] = None
-        actual_sha: Optional[str] = None
+        byte_match: bool | None = None
+        actual_sha: str | None = None
         detail_parts: list[str] = []
 
         # 1) Manifest self-consistency via Genblaze when possible
@@ -80,13 +80,13 @@ class ProvenanceService:
                         if manifest_ok
                         else "manifest.verify() failed"
                     )
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     # Fallback: presence of canonical_hash counts as structural OK
                     manifest_ok = bool(
                         payload.get("canonical_hash") or run.canonical_hash
                     )
                     detail_parts.append(f"manifest parsed; verify skipped ({exc})")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 detail_parts.append(f"manifest load failed: {exc}")
         else:
             manifest_ok = bool(run.canonical_hash)
@@ -103,7 +103,7 @@ class ProvenanceService:
                 detail_parts.append(
                     "byte sha256 matched" if ok else "byte sha256 mismatch"
                 )
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 detail_parts.append(f"byte check failed: {exc}")
         elif not expected:
             detail_parts.append("asset has no sha256; byte check skipped")

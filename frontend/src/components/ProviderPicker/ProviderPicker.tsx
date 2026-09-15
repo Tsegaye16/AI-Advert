@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Col, Form, Row, Select, Typography } from "antd";
 import { getProvidersStatus } from "../../services/api";
+import type { ProviderSelectionValues } from "../../utils/providerSelection";
 
 type MatrixEntry = {
   vendor: string;
@@ -16,21 +17,8 @@ type ProviderMatrix = {
   music?: MatrixEntry[];
 };
 
-export type ProviderSelectionValues = {
-  image_vendor?: string;
-  image_model?: string;
-  video_vendor?: string;
-  video_model?: string;
-  tts_vendor?: string;
-  tts_model?: string;
-  music_vendor?: string;
-  music_model?: string;
-};
-
 interface Props {
   mode: "quick" | "full";
-  value?: ProviderSelectionValues;
-  onChange?: (value: ProviderSelectionValues) => void;
 }
 
 function modelOptions(entry: MatrixEntry | undefined) {
@@ -120,9 +108,10 @@ export function ProviderPicker({ mode }: Props) {
   if (!hasMatrix) return null;
 
   return (
-    <div className="provider-picker-block">
+    <div className="stack stack--sm">
       <Typography.Text type="secondary">
-        Provider overrides (optional — defaults use free-first auto selection)
+        Leave blank to use free-first auto-selection. AdVault falls back to the next
+        vendor automatically if a provider errors or times out.
       </Typography.Text>
       <Row gutter={16} style={{ marginTop: 8 }}>
         <SlotPicker
@@ -162,27 +151,4 @@ export function ProviderPicker({ mode }: Props) {
       </Row>
     </div>
   );
-}
-
-export function buildSelectionPayload(
-  values: ProviderSelectionValues,
-): Record<string, { vendor?: string; model?: string }> | undefined {
-  const slots = [
-    ["image", "image_vendor", "image_model"],
-    ["video", "video_vendor", "video_model"],
-    ["tts", "tts_vendor", "tts_model"],
-    ["music", "music_vendor", "music_model"],
-  ] as const;
-  const selection: Record<string, { vendor?: string; model?: string }> = {};
-  for (const [slot, vendorKey, modelKey] of slots) {
-    const vendor = values[vendorKey] as string | undefined;
-    const model = values[modelKey] as string | undefined;
-    if (vendor || model) {
-      selection[slot] = {
-        ...(vendor ? { vendor } : {}),
-        ...(model ? { model } : {}),
-      };
-    }
-  }
-  return Object.keys(selection).length ? selection : undefined;
 }

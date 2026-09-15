@@ -132,7 +132,7 @@ class DecartCanvasImageProvider(SyncProvider):
     def _close_client(client: Any) -> None:
         try:
             _run_async(client.close())
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("Decart client close: %s", exc)
 
     def generate(self, step: Step, config: RunnableConfig | None = None) -> Step:
@@ -172,7 +172,7 @@ class DecartCanvasImageProvider(SyncProvider):
                         f"from the reference image: {short}"
                     )
                     break
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     logger.warning("Could not load logo reference for Decart: %s", exc)
         last_exc: BaseException | None = None
 
@@ -209,7 +209,7 @@ class DecartCanvasImageProvider(SyncProvider):
                 try:
                     url, sha = _upload_png_to_b2(bytes(payload), step.step_id)
                     asset = Asset(url=url, media_type="image/png", sha256=sha)
-                except Exception as upload_exc:  # noqa: BLE001
+                except Exception as upload_exc:
                     logger.warning(
                         "B2 inbox upload failed (%s); falling back to file URI",
                         upload_exc,
